@@ -18,6 +18,11 @@ from configparser import ConfigParser
 from PIL import Image
 import numpy as np
 
+from util.detect_with_qr import QrDetector
+
+qd = QrDetector()
+qd.start_service()
+
 
 def qpixmap_to_pil(pixmap):
     # Convert QPixmap to QImage
@@ -351,7 +356,14 @@ class Ui_MainWindow(object):
     def display_scene_image(self, image):
         # ! Update scene image.
         pil_image = qpixmap_to_pil(image)
+
+        # TODO: The example
+        # pil_image
+        # self.cur_gaze_x
+        # self.cur_gaze_y
         print(pil_image, self.cur_gaze_x, self.cur_gaze_y)
+        qd.update(pil_image, self.cur_gaze_x, self.cur_gaze_y)
+
         painter = QPainter(image)
         painter.setRenderHints(
             QPainter.Antialiasing | QPainter.SmoothPixmapTransform | QPainter.Qt4CompatiblePainting)

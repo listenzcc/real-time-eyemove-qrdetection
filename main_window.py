@@ -359,10 +359,11 @@ class Ui_MainWindow(object):
 
         # TODO: The example
         # pil_image
-        # self.cur_gaze_x
-        # self.cur_gaze_y
-        print(pil_image, self.cur_gaze_x, self.cur_gaze_y)
-        qd.update(pil_image, self.cur_gaze_x, self.cur_gaze_y)
+        # self.cur_gaze_x, in pixels
+        # self.cur_gaze_y, in pixels
+        x = self.cur_gaze_x / pil_image.size[0]
+        y = self.cur_gaze_y / pil_image.size[1]
+        qd.update(pil_image, x, y)
 
         painter = QPainter(image)
         painter.setRenderHints(

@@ -1,4 +1,5 @@
 import time
+import requests
 import numpy as np
 
 from PIL import Image
@@ -12,18 +13,51 @@ qreader = QReader()
 def detect_qr_code(image: Image):
     image = image.convert('RGB')
 
-    found = qreader.detect_and_decode(
-        image=np.array(image), return_detections=True)
+    found = qreader.detect(
+        image=np.array(image), is_bgr=True)
 
-    n = len(found[1])
-    qr_codes = []
-    for pnt in found[1]:
+    n = len(found)
+    print(n)
+    assert n >= 3, f'Require at least 3 qr-codes.'
+
+    data = []
+    for pnt in found:
         # print(pnt)
-        x1, y1, x2, y2 = pnt['bbox_xyxy']
+        x1, y1, x2, y2 = pnt['bbox_xyxyn']
         # print(f'{i} | {n}', (x1, y1, x2, y2))
-        qr_codes.append((x1, y1, x2, y2))
+        data.append((x1, y1, x2, y2))
 
-    return qr_codes
+    data.sort(key=lambda e: e[0])
+    if data[0][1] < data[1][1]:
+        nw = data[0]
+        sw = data[1]
+        ne = data[n-1]
+    else:
+        nw = data[1]
+        sw = data[0]
+        ne = data[n-1]
+
+    nw = [nw[0], nw[1]]
+    sw = [sw[0], sw[3]]
+    ne = [ne[2], ne[1]]
+
+    found = [nw, sw, ne]
+
+    return found
+
+
+def send_coordinates(x, y):
+    try:
+        # Construct the URL with query parameters
+        url = f"http://localhost:8080/?x={x}&y={y}"
+
+        # Send the GET request
+        response = requests.get(url)
+
+        # Print the server's response
+        print(f"Server response: {response.text}")
+    except Exception as e:
+        print(f"Error sending coordinates: {e}")
 
 
 class QrDetector:
@@ -52,13 +86,36 @@ class QrDetector:
         self.running = True
         while self.running:
             if self.image is None:
-                time.sleep(100)
+                time.sleep(0.1)
+                continue
 
             with self.lock:
                 img = self.image.copy()
                 x = self.x
                 y = self.y
 
-            qr_codes = detect_qr_code(img)
-            print(qr_codes)
+            try:
+                corners = detect_qr_code(img)
+            except Exception:
+                # import traceback
+                # traceback.print_exc()
+                time.sleep(0.1)
+                continue
+
+            try:
+                print(corners)
+                nw, sw, ne = corners
+                x_axis = np.array(ne) - np.array(nw)
+                y_axis = np.array(sw) - np.array(nw)
+                p = np.array([x, y]) - np.array(nw)
+                rx = np.dot(p, x_axis) / np.dot(x_axis, x_axis)
+                ry = np.dot(p, y_axis) / np.dot(y_axis, y_axis)
+                print(x, y, rx, ry)
+                send_coordinates(rx, ry)
+            except Exception:
+                import traceback
+                traceback.print_exc()
+            finally:
+                time.sleep(0.1)
+
         logger.info('Main loop stops.')

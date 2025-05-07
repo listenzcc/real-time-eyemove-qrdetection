@@ -1,6 +1,7 @@
 import time
 import requests
 import numpy as np
+import socket  # Add this import
 
 from PIL import Image
 from qreader import QReader
@@ -47,14 +48,15 @@ def detect_qr_code(image: Image):
 
 def send_coordinates(x, y):
     try:
-        # Construct the URL with query parameters
-        url = f"http://localhost:8080/?x={x}&y={y}"
-
-        # Send the GET request
-        response = requests.get(url)
-
-        # Print the server's response
-        print(f"Server response: {response.text}")
+        # Establish a TCP connection
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as client_socket:
+            # Connect to the TCP server
+            client_socket.connect(('localhost', 8080))
+            message = f"x={x}&y={y}"  # Format the message
+            client_socket.sendall(message.encode())  # Send the message
+            response = client_socket.recv(
+                1024).decode()  # Receive the response
+            print(f"Server response: {response}")
     except Exception as e:
         print(f"Error sending coordinates: {e}")
 

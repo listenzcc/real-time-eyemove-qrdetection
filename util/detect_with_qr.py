@@ -17,7 +17,6 @@ def detect_qr_code(image: Image):
         image=np.array(image), is_bgr=True)
 
     n = len(found)
-    print(n)
     assert n >= 3, f'Require at least 3 qr-codes.'
 
     data = []
@@ -61,10 +60,20 @@ def send_coordinates(x, y):
 
 
 class QrDetector:
+    # Real time image
     image: Image = None
+
+    # Corners
+    corners: list = None
+
+    # Real time gaze position
     x: int = 0
     y: int = 0
+
+    # Whether is running
     running: bool = False
+
+    # RLock
     lock = RLock()
 
     def update(self, image: Image, x: int, y: int):
@@ -74,6 +83,8 @@ class QrDetector:
             self.y = y
 
     def start_service(self):
+        self.running = True
+        Thread(target=self.slow_loop, daemon=True).start()
         Thread(target=self.main_loop, daemon=True).start()
         logger.info(f'Start service: {self}.')
 
@@ -81,9 +92,12 @@ class QrDetector:
         self.running = False
         logger.info(f'Stop service: {self}.')
 
-    def main_loop(self):
-        logger.info('Main loop starts.')
-        self.running = True
+    def slow_loop(self):
+        '''
+        Detect the qr-codes in the slow loop.
+        The detection is rather slow, like 2 ~ 5 fps.
+        '''
+        logger.info('Slow loop starts.')
         while self.running:
             if self.image is None:
                 time.sleep(0.1)
@@ -91,31 +105,50 @@ class QrDetector:
 
             with self.lock:
                 img = self.image.copy()
-                x = self.x
-                y = self.y
 
             try:
                 corners = detect_qr_code(img)
-            except Exception:
-                # import traceback
-                # traceback.print_exc()
+            except Exception as err:
+                logger.exception(err)
                 time.sleep(0.1)
                 continue
 
+            with self.lock:
+                self.corners = corners
+
+        logger.info('Slow loop stops.')
+
+    def main_loop(self):
+        '''
+        Translate gaze position in the main loop.
+        I except it very fast.
+        '''
+        logger.info('Main loop starts.')
+        while self.running:
+            if self.corners is None:
+                time.sleep(0.1)
+                continue
+
+            with self.lock:
+                x = self.x
+                y = self.y
+                corners = self.corners
+
             try:
-                print(corners)
                 nw, sw, ne = corners
                 x_axis = np.array(ne) - np.array(nw)
                 y_axis = np.array(sw) - np.array(nw)
                 p = np.array([x, y]) - np.array(nw)
                 rx = np.dot(p, x_axis) / np.dot(x_axis, x_axis)
                 ry = np.dot(p, y_axis) / np.dot(y_axis, y_axis)
-                print(x, y, rx, ry)
+                logger.debug(f'Corners: {corners}')
+                logger.debug('Positions: {}'.format(
+                    ', '.join([f'{e:.4f}' for e in [x, y, rx, ry]])))
                 send_coordinates(rx, ry)
             except Exception:
                 import traceback
                 traceback.print_exc()
             finally:
-                time.sleep(0.1)
+                time.sleep(0.001)
 
         logger.info('Main loop stops.')

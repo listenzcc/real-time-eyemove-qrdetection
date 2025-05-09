@@ -97,8 +97,10 @@ class wrapper:
             obj.left_pupil.pupil_center.x, obj.left_pupil.pupil_center.y,
             obj.right_pupil.pupil_center.x, obj.right_pupil.pupil_center.y)
 
+        # Add pupil_diameter_mm
         wrapper.ui_handle.set_gaze_signal.emit(
-            obj.recom_gaze.gaze_point.x, obj.recom_gaze.gaze_point.y)
+            obj.recom_gaze.gaze_point.x, obj.recom_gaze.gaze_point.y,
+            obj.left_pupil.pupil_diameter, obj.right_pupil.pupil_diameter)
 
     @staticmethod
     def left_point_process_callback(index, percent, context):

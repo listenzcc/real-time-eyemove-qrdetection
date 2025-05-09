@@ -4,6 +4,7 @@ import numpy as np
 import socket  # Add this import
 
 from PIL import Image
+from typing import Optional
 from qreader import QReader
 from threading import Thread, RLock
 from loguru import logger
@@ -11,7 +12,7 @@ from loguru import logger
 qreader = QReader()
 
 
-def detect_qr_code(image: Image):
+def detect_qr_code(image: Image.Image):
     image = image.convert('RGB')
 
     found = qreader.detect(
@@ -63,26 +64,34 @@ def send_coordinates(x, y):
 
 class QrDetector:
     # Real time image
-    image: Image = None
+    image: Optional[Image.Image] = None
 
     # Corners
-    corners: list = None
+    corners: Optional[list] = None
 
     # Real time gaze position
     x: int = 0
     y: int = 0
+    ld: float=0.0
+    rd:float = 0.0
 
     # Whether is running
     running: bool = False
 
     # RLock
     lock = RLock()
+    
+    # Data buffer
+    data = []
+    times = []
 
-    def update(self, image: Image, x: int, y: int):
+    def update(self, image: Image.Image, x: int, y: int, ld:float, rd:float):
         with self.lock:
             self.image = image
             self.x = x
             self.y = y
+            self.ld = ld
+            self.rd = rd
 
     def start_service(self):
         self.running = True
@@ -110,6 +119,9 @@ class QrDetector:
 
             try:
                 corners = detect_qr_code(img)
+            except AssertionError:
+                time.sleep(0.1)
+                continue
             except Exception as err:
                 logger.exception(err)
                 time.sleep(0.1)
@@ -126,6 +138,8 @@ class QrDetector:
         I except it very fast.
         '''
         logger.info('Main loop starts.')
+        self.data = []
+        self.times = []
         while self.running:
             if self.corners is None:
                 time.sleep(0.1)
@@ -134,6 +148,8 @@ class QrDetector:
             with self.lock:
                 x = self.x
                 y = self.y
+                ld = self.ld
+                rd = self.rd
                 corners = self.corners
 
             try:
@@ -143,14 +159,15 @@ class QrDetector:
                 p = np.array([x, y]) - np.array(nw)
                 rx = np.dot(p, x_axis) / np.dot(x_axis, x_axis)
                 ry = np.dot(p, y_axis) / np.dot(y_axis, y_axis)
-                logger.debug(f'Corners: {corners}')
+                # logger.debug(f'Corners: {corners}')
                 logger.debug('Positions: {}'.format(
-                    ', '.join([f'{e:.4f}' for e in [x, y, rx, ry]])))
-                send_coordinates(rx, ry)
-            except Exception:
-                import traceback
-                traceback.print_exc()
+                    ', '.join([f'{e:.4f}' for e in [x, y, rx, ry, ld, rd]])))
+                # send_coordinates(rx, ry)
+                self.data.append((rx, ry, ld, rd))
+                self.times.append(time.time())
+            except Exception as err:
+                logger.exception(err)
             finally:
-                time.sleep(0.001)
+                time.sleep(0.1)
 
         logger.info('Main loop stops.')

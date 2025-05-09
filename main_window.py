@@ -70,6 +70,8 @@ class Ui_MainWindow(object):
     finish_points = [[1, 1], [1, 1], [1, 1]]
     cur_gaze_x = 0
     cur_gaze_y = 0
+    left_diameter = 0
+    right_diameter = 0
     cur_scene_w = 1280
     cur_scene_h = 720
     sdk_config_path = b'../../bin/config'
@@ -77,7 +79,7 @@ class Ui_MainWindow(object):
     #  Define the signal
     set_sdk_running_signal = QtCore.pyqtSignal(bool)
     set_pupil_center_signal = QtCore.pyqtSignal(float, float, float, float)
-    set_gaze_signal = QtCore.pyqtSignal(float, float)
+    set_gaze_signal = QtCore.pyqtSignal(float, float, float, float)
     set_scene_image_signal = QtCore.pyqtSignal(QPixmap)
     set_left_eye_image_signal = QtCore.pyqtSignal(QPixmap)
     set_right_eye_image_signal = QtCore.pyqtSignal(QPixmap)
@@ -363,7 +365,7 @@ class Ui_MainWindow(object):
         # self.cur_gaze_y, in pixels
         x = self.cur_gaze_x / pil_image.size[0]
         y = self.cur_gaze_y / pil_image.size[1]
-        qd.update(pil_image, x, y)
+        qd.update(pil_image, x, y, self.left_diameter, self.right_diameter)
 
         painter = QPainter(image)
         painter.setRenderHints(
@@ -389,12 +391,15 @@ class Ui_MainWindow(object):
         self.labelRightPupilCenterX.setText(str(right_x))
         self.labelRightPupilCenterY.setText(str(right_y))
 
-    def display_gaze_data(self, x, y):
+    def display_gaze_data(self, x, y, ld, rd):
         self.labelGazeX.setText(str(x))
         self.labelGazeY.setText(str(y))
+        # print('diameter=', ld, rd, x, y)
         # 图像中心点定义为坐标系原点（0,0）转换为：图像左上角为坐标系（0,0），便于GDI绘图！
         self.cur_gaze_x = (x + self.cur_scene_w / 2)
         self.cur_gaze_y = (y + self.cur_scene_h / 2)
+        self.left_diameter = ld
+        self.right_diameter = rd
 
     def on_set_sdk_running(self, enabled):
         self.sdk_is_running = enabled
